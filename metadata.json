@@ -1,0 +1,8 @@
+{
+  "name": "Protocall AI Interview Coach",
+  "description": "Protocall is a professional AI interview preparation platform that uses real-time audio and video analysis to help candidates master their interview skills with personalized feedback on clarity, confidence, facial expressions, and communication.",
+  "requestFramePermissions": [
+    "microphone",
+    "camera"
+  ]
+}
