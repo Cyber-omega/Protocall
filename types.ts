@@ -13,6 +13,14 @@ export interface InterviewSessionConfig {
   focus: string[];
 }
 
+export interface UserStats {
+  totalSessions: number;
+  currentStreak: number;
+  lastSessionDate: string | null;
+  scoreHistory: number[];
+  averageScore: number;
+}
+
 export interface InterviewAnalysis {
   overallScore: number;
   clarity: number;
@@ -23,7 +31,7 @@ export interface InterviewAnalysis {
   weaknesses: string[];
   recommendations: string[];
   transcript: string;
-  duration?: string; // Formatted string like "12:45"
+  duration?: string; 
 }
 
 export interface TranscriptionTurn {
@@ -37,6 +45,7 @@ export interface AppState {
   config: InterviewSessionConfig | null;
   analysis: InterviewAnalysis | null;
   history: TranscriptionTurn[];
+  stats: UserStats;
 }
 
 declare global {

@@ -1,12 +1,20 @@
 
 import React, { useState, useEffect } from 'react';
-import { AppState, InterviewStatus, InterviewSessionConfig, TranscriptionTurn } from './types';
+import { AppState, InterviewStatus, InterviewSessionConfig, TranscriptionTurn, UserStats } from './types';
 import { ThemeToggle } from './components/ThemeToggle';
 import { InterviewSetup } from './components/InterviewSetup';
 import { InterviewSession } from './components/InterviewSession';
 import { AnalysisReport } from './components/AnalysisReport';
 import { generateEvaluation } from './services/analysisService';
 import { Icons } from './constants';
+
+const INITIAL_STATS: UserStats = {
+  totalSessions: 0,
+  currentStreak: 0,
+  lastSessionDate: null,
+  scoreHistory: [],
+  averageScore: 0
+};
 
 const App: React.FC = () => {
   const [state, setState] = useState<AppState>({
@@ -15,12 +23,23 @@ const App: React.FC = () => {
     config: null,
     analysis: null,
     history: [],
+    stats: INITIAL_STATS
   });
 
   const [loading, setLoading] = useState(false);
   const [hasKey, setHasKey] = useState(true);
 
+  // Load stats from local storage on mount
   useEffect(() => {
+    const savedStats = localStorage.getItem('protocall_stats');
+    if (savedStats) {
+      try {
+        setState(prev => ({ ...prev, stats: JSON.parse(savedStats) }));
+      } catch (e) {
+        console.error("Failed to parse saved stats", e);
+      }
+    }
+
     const checkKey = async () => {
       if (window.aistudio) {
         const selected = await window.aistudio.hasSelectedApiKey();
@@ -30,13 +49,6 @@ const App: React.FC = () => {
     checkKey();
   }, []);
 
-  const handleSelectKey = async () => {
-    if (window.aistudio) {
-      await window.aistudio.openSelectKey();
-      setHasKey(true);
-    }
-  };
-
   useEffect(() => {
     if (state.theme === 'dark') {
       document.documentElement.classList.add('dark');
@@ -44,6 +56,58 @@ const App: React.FC = () => {
       document.documentElement.classList.remove('dark');
     }
   }, [state.theme]);
+
+  const updateStats = (newScore: number) => {
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    
+    setState(prev => {
+      const oldStats = prev.stats;
+      const lastDate = oldStats.lastSessionDate;
+      
+      let newStreak = oldStats.currentStreak;
+      
+      if (!lastDate) {
+        newStreak = 1;
+      } else {
+        const lastDateObj = new Date(lastDate);
+        const diffTime = Math.abs(now.getTime() - lastDateObj.getTime());
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        if (diffDays === 1) {
+          newStreak += 1;
+        } else if (diffDays > 1) {
+          newStreak = 1;
+        }
+        // If diffDays is 0, same day, streak stays same
+      }
+
+      const newHistory = [...oldStats.scoreHistory, newScore];
+      const newAverage = Math.round(newHistory.reduce((a, b) => a + b, 0) / newHistory.length);
+
+      const updatedStats: UserStats = {
+        totalSessions: oldStats.totalSessions + 1,
+        currentStreak: newStreak,
+        lastSessionDate: today,
+        scoreHistory: newHistory,
+        averageScore: newAverage
+      };
+
+      localStorage.setItem('protocall_stats', JSON.stringify(updatedStats));
+      return { ...prev, stats: updatedStats };
+    });
+  };
+
+  /**
+   * Opens the AI Studio API key selection dialog and assumes success to mitigate race condition.
+   */
+  const handleSelectKey = async () => {
+    if (window.aistudio) {
+      await window.aistudio.openSelectKey();
+      // Assume success as per guidelines to avoid race condition
+      setHasKey(true);
+    }
+  };
 
   const handleStartInterview = (config: InterviewSessionConfig) => {
     setState(prev => ({ ...prev, config, status: InterviewStatus.INTERVIEWING }));
@@ -55,7 +119,10 @@ const App: React.FC = () => {
     setLoading(true);
     try {
       const evaluation = await generateEvaluation(state.config, history);
-      evaluation.duration = duration; // Inject duration into evaluation
+      evaluation.duration = duration;
+      
+      updateStats(evaluation.overallScore);
+
       setState(prev => ({
         ...prev,
         history,
@@ -90,19 +157,67 @@ const App: React.FC = () => {
 
     switch (state.status) {
       case InterviewStatus.IDLE:
+        const improvement = state.stats.scoreHistory.length > 1 
+          ? state.stats.scoreHistory[state.stats.scoreHistory.length - 1] - state.stats.scoreHistory[0]
+          : 0;
+
         return (
-          <div className="flex flex-col items-center justify-center min-h-[70vh] text-center max-w-5xl mx-auto space-y-16">
-            <div className="space-y-6">
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass text-p-teal dark:text-p-pale text-xs font-bold tracking-[0.2em] uppercase">
-                <Icons.Sparkles className="w-4 h-4 text-p-gold" />
-                Empowering the next generation
+          <div className="flex flex-col items-center justify-center min-h-[70vh] text-center max-w-6xl mx-auto space-y-16">
+            <div className="space-y-6 w-full">
+              <div className="flex flex-col md:flex-row items-center justify-center gap-4 mb-8">
+                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass text-p-teal dark:text-p-pale text-xs font-bold tracking-[0.2em] uppercase">
+                  <Icons.Sparkles className="w-4 h-4 text-p-gold" />
+                  Elite Preparation Interface
+                </div>
+                {state.stats.totalSessions > 0 && (
+                  <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass bg-p-gold/10 text-p-gold text-xs font-black tracking-[0.2em] uppercase border border-p-gold/20">
+                    <div className="w-2 h-2 rounded-full bg-p-gold animate-ping" />
+                    {state.stats.currentStreak} Day Streak
+                  </div>
+                )}
               </div>
-              <h1 className="text-7xl md:text-9xl font-black tracking-tighter text-p-deep dark:text-p-white leading-[0.9]">
+
+              <h1 className="text-7xl md:text-[10rem] font-black tracking-tighter text-p-deep dark:text-p-white leading-[0.8] mb-8">
                 P<span className="text-p-teal">R</span>O<span className="text-p-gold">T</span>OCALL
               </h1>
-              <p className="text-xl text-p-deep/60 dark:text-p-pale/70 max-w-2xl mx-auto font-medium">
+              
+              <p className="text-xl text-p-deep/60 dark:text-p-pale/70 max-w-2xl mx-auto font-medium mb-12">
                 The ultimate AI-driven mock interview environment. Real-time audio, video expression analysis, and agent-based feedback.
               </p>
+
+              {/* Motivation Hub */}
+              {state.stats.totalSessions > 0 && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto mb-12 animate-in fade-in slide-in-from-bottom-4 duration-1000">
+                  <div className="glass p-6 rounded-3xl border border-white/5 text-left">
+                    <p className="text-[10px] font-black text-p-teal uppercase tracking-widest mb-1">Total Impact</p>
+                    <p className="text-3xl font-black text-p-deep dark:text-white">{state.stats.totalSessions}</p>
+                    <p className="text-[10px] opacity-40 uppercase font-bold">Sessions</p>
+                  </div>
+                  <div className="glass p-6 rounded-3xl border border-white/5 text-left">
+                    <p className="text-[10px] font-black text-p-gold uppercase tracking-widest mb-1">Current Skill</p>
+                    <p className="text-3xl font-black text-p-deep dark:text-white">{state.stats.averageScore}</p>
+                    <p className="text-[10px] opacity-40 uppercase font-bold">Avg Score</p>
+                  </div>
+                  <div className="glass p-6 rounded-3xl border border-white/5 text-left relative overflow-hidden">
+                    <p className="text-[10px] font-black text-p-teal uppercase tracking-widest mb-1">Improvement</p>
+                    <p className="text-3xl font-black text-p-deep dark:text-white">
+                      {improvement >= 0 ? '+' : ''}{improvement}
+                    </p>
+                    <p className="text-[10px] opacity-40 uppercase font-bold">Pts Growth</p>
+                    <div className="absolute -right-2 -bottom-2 opacity-10">
+                      <Icons.ChartBar className="w-12 h-12" />
+                    </div>
+                  </div>
+                  <div className="glass p-6 rounded-3xl border border-p-gold/20 text-left bg-p-gold/5 group">
+                    <p className="text-[10px] font-black text-p-gold uppercase tracking-widest mb-1">Commitment</p>
+                    <div className="flex items-end gap-1">
+                      <p className="text-3xl font-black text-p-deep dark:text-white">{state.stats.currentStreak}</p>
+                      <Icons.Sparkles className="w-5 h-5 text-p-gold mb-1 group-hover:scale-125 transition-transform" />
+                    </div>
+                    <p className="text-[10px] opacity-40 uppercase font-bold">Day Streak</p>
+                  </div>
+                </div>
+              )}
             </div>
             
             <div className="flex flex-col items-center gap-6">
@@ -118,9 +233,10 @@ const App: React.FC = () => {
               
               <button
                 onClick={() => setState(prev => ({ ...prev, status: InterviewStatus.SETUP }))}
-                className="group relative px-12 py-6 bg-p-teal text-white rounded-2xl font-black text-2xl shadow-2xl shadow-p-teal/20 hover:scale-105 transition-all flex items-center gap-4"
+                className="group relative px-12 py-6 bg-p-teal text-white rounded-2xl font-black text-2xl shadow-2xl shadow-p-teal/20 hover:scale-105 transition-all flex items-center gap-4 overflow-hidden"
               >
-                Start Preparation
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+                {state.stats.totalSessions > 0 ? 'Resume Training' : 'Start Preparation'}
                 <span className="block group-hover:translate-x-2 transition-transform text-p-gold">→</span>
               </button>
             </div>
@@ -189,9 +305,15 @@ const App: React.FC = () => {
       <footer className="py-12 text-center">
         <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-4 text-sm font-bold text-p-teal/50 tracking-widest uppercase">
           <p>© 2025 PROTOCALL SYSTEMS</p>
-          <p className="flex items-center gap-2">
-            DEVELOPED BY <span className="text-p-gold">CIPHERSQUAD</span>
-          </p>
+          <div className="flex items-center gap-6">
+             <p className="flex items-center gap-2">
+               STREAK: <span className="text-p-gold">{state.stats.currentStreak}D</span>
+             </p>
+             <div className="h-4 w-[1px] bg-white/10" />
+             <p className="flex items-center gap-2">
+               DEVELOPED BY <span className="text-p-gold">CIPHERSQUAD</span>
+             </p>
+          </div>
         </div>
       </footer>
     </div>

@@ -11,17 +11,17 @@ interface AnalysisReportProps {
 
 export const AnalysisReport: React.FC<AnalysisReportProps> = ({ analysis, onReset }) => {
   const radarData = [
-    { subject: 'Clarity', A: analysis.clarity, fullMark: 100 },
-    { subject: 'Confidence', A: analysis.confidence, fullMark: 100 },
-    { subject: 'Communication', A: analysis.communication, fullMark: 100 },
-    { subject: 'Technical', A: analysis.technicalKnowledge, fullMark: 100 },
+    { subject: 'Clarity', A: analysis.clarity || 0, fullMark: 100 },
+    { subject: 'Confidence', A: analysis.confidence || 0, fullMark: 100 },
+    { subject: 'Communication', A: analysis.communication || 0, fullMark: 100 },
+    { subject: 'Technical', A: analysis.technicalKnowledge || 0, fullMark: 100 },
   ];
 
   const scoreData = [
-    { name: 'Clarity', score: analysis.clarity },
-    { name: 'Confidence', score: analysis.confidence },
-    { name: 'Communication', score: analysis.communication },
-    { name: 'Technical', score: analysis.technicalKnowledge },
+    { name: 'Clarity', score: analysis.clarity || 0 },
+    { name: 'Confidence', score: analysis.confidence || 0 },
+    { name: 'Communication', score: analysis.communication || 0 },
+    { name: 'Technical', score: analysis.technicalKnowledge || 0 },
   ];
 
   const COLORS = ['#407E86', '#A58D66', '#C0D5D6', '#083A4F'];
@@ -49,19 +49,19 @@ export const AnalysisReport: React.FC<AnalysisReportProps> = ({ analysis, onRese
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Summary Card */}
-        <div className="lg:col-span-2 glass p-10 rounded-[3rem] shadow-2xl flex flex-col md:flex-row items-center gap-12 border border-white/10 overflow-hidden">
+        {/* Radar Chart Container */}
+        <div className="lg:col-span-2 glass p-10 rounded-[3rem] shadow-2xl flex flex-col md:flex-row items-center gap-12 border border-white/10 overflow-hidden min-h-[450px]">
           <div className="text-center md:text-left shrink-0">
             <h4 className="text-xs font-black uppercase tracking-[0.3em] text-p-teal mb-2">Overall Proficiency</h4>
             <div className="text-[10rem] font-black text-p-teal dark:text-p-gold leading-none tracking-tighter">
-                {analysis.overallScore}
+                {analysis.overallScore || 0}
             </div>
             <p className="max-w-xs text-p-deep/60 dark:text-p-pale/60 text-sm font-medium leading-relaxed">
-              Calculated using neural analysis of your transcript and visual cues. High technical consistency detected.
+              Neural assessment based on transcript, vocal sentiment, and facial behavioral cues.
             </p>
           </div>
-          <div className="flex-1 w-full min-w-0 h-[350px] min-h-[350px]">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="flex-1 w-full h-[350px] relative overflow-hidden" style={{ minWidth: 0 }}>
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <RadarChart cx="50%" cy="50%" outerRadius="80%" data={radarData}>
                 <PolarGrid stroke="rgba(64, 126, 134, 0.2)" />
                 <PolarAngleAxis dataKey="subject" tick={{ fill: '#407E86', fontSize: 12, fontWeight: 800 }} />
@@ -77,17 +77,17 @@ export const AnalysisReport: React.FC<AnalysisReportProps> = ({ analysis, onRese
           </div>
         </div>
 
-        {/* Breakdown Card */}
-        <div className="glass p-10 rounded-[3rem] shadow-2xl border border-white/10 overflow-hidden">
+        {/* Metrics Bar Chart Container */}
+        <div className="glass p-10 rounded-[3rem] shadow-2xl border border-white/10 overflow-hidden min-h-[450px]">
           <h3 className="text-xl font-black mb-8 flex items-center gap-3">
-            <Icons.ChartBar className="w-6 h-6 text-p-teal" /> Metrics
+            <Icons.ChartBar className="w-6 h-6 text-p-teal" /> Skill Metrics
           </h3>
-          <div className="w-full h-[350px] min-h-[350px] min-w-0">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={scoreData} layout="vertical" margin={{ left: -20 }}>
+          <div className="w-full h-[300px] relative overflow-hidden" style={{ minWidth: 0 }}>
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+              <BarChart data={scoreData} layout="vertical" margin={{ left: -20, right: 20 }}>
                 <XAxis type="number" hide domain={[0, 100]} />
                 <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 10, fill: '#407E86', fontWeight: 700 }} axisLine={false} tickLine={false} />
-                <Tooltip cursor={{ fill: 'transparent' }} />
+                <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ backgroundColor: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)', border: 'none', borderRadius: '12px' }} />
                 <Bar dataKey="score" radius={[0, 10, 10, 0]} barSize={32}>
                   {scoreData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
